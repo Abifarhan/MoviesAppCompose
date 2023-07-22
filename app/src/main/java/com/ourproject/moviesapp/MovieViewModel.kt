@@ -28,55 +28,42 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 class MovieViewModel: ViewModel() {
 
-//    private val movieApi: MovieApi = createRetrofit().create(MovieApi::class.java)
-//
-//    private val _moviesLiveData = MutableLiveData<List<Movie>>()
-//    val moviesLiveData: LiveData<List<Movie>> get() = _moviesLiveData
-//
-//    fun getPopularMovies() {
-//        viewModelScope.launch {
-//            try {
-//                val response = withContext(Dispatchers.IO) {
-//                    movieApi.getPopularMovies(apiKey = "dd1a34e8db923f17b136543601658cee", language = "en", page = 1)
-//                }
-//
-//                if (response.isSuccessful) {
-//                    val movies = response.body()?.results ?: emptyList()
-//                    _moviesLiveData.value = movies
-//                } else {
-//                    // Handle error
-//                }
-//            } catch (e: Exception) {
-//                // Handle exception
-//            }
-//        }
-//    }
-//
-//    fun getPopularMovies2() {
-//
-//        try {
-//            val response = withContext(Dispatchers.IO) {
-//                movieApi.getPopularMovies(apiKey = "YOUR_API_KEY_HERE", language = "en", page = 1)
-//            }
-//
-//            if (response.isSuccessful) {
-//                val movies = response.body()?.results ?: emptyList()
-//                _moviesLiveData.postValue(movies)
-//            } else {
-//                // Handle error
-//            }
-//        } catch (e: Exception) {
-//            // Handle exception
-//        }
-//    }
-//
-//    fun createRetrofit(): Retrofit {
-//        val baseUrl = "https://api.themoviedb.org/3/"
-//        val apiKey = "YOUR_API_KEY_HERE"
-//
-//        return Retrofit.Builder()
-//            .baseUrl(baseUrl)
-//            .addConverterFactory(GsonConverterFactory.create())
-//            .build()
-//    }
+    private val _moviesLiveData = mutableStateOf<List<MovieResultEntity.MovieEntity>>(emptyList())
+    val moviesLiveData: State<List<MovieResultEntity.MovieEntity>> = _moviesLiveData
+
+    private val _isLoading = mutableStateOf(false)
+    val isLoading: State<Boolean> = _isLoading
+
+    private val _isRetryButtonVisible = mutableStateOf(false)
+    val isRetryButtonVisible: State<Boolean> = _isRetryButtonVisible
+
+    fun loadPopularMovies() {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _isRetryButtonVisible.value = false
+
+                val response = withContext(Dispatchers.IO) {
+                    RetrofitClient.movieApi.getPopularMovies(
+                        page = 1,
+                        apiKey = "dd1a34e8db923f17b136543601658cee"
+                    )
+                }
+
+                if (response.isSuccessful) {
+                    val movieResultEntity = response.body()
+                    _moviesLiveData.value = movieResultEntity?.searches ?: emptyList()
+                } else {
+                    // Handle error and show retry button
+                    _isRetryButtonVisible.value = true
+                }
+
+            } catch (e: Exception) {
+                // Handle exceptions and show retry button
+                _isRetryButtonVisible.value = true
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
 }

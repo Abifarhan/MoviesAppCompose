@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +15,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -23,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role.Companion.Image
@@ -48,7 +54,7 @@ import okhttp3.OkHttpClient
 class MainActivity : ComponentActivity() {
 
 //    private var movies by mutableStateOf<List<MovieEntity>>(emptyList())
-
+private val movieViewModel: MovieViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -60,18 +66,33 @@ class MainActivity : ComponentActivity() {
                 ) {
 
                     LaunchedEffect(true) {
-                        loadPopularMovies()
+                        movieViewModel.loadPopularMovies()
+//                        loadPopularMovies()
                     }
-                  MovieList(movies)
+
+                    val movies = movieViewModel.moviesLiveData.value
+                    val isLoading = movieViewModel.isLoading.value
+                    val isRetryButtonVisible = movieViewModel.isRetryButtonVisible.value
+                    Log.d("TAG", "onCreate: simulate mock $isRetryButtonVisible")
+                    MovieList(
+                        movies = movies,
+                        isLoading = isLoading,
+//                        isRetryButtonVisible = isRetryButtonVisible,
+                        isRetryButtonVisible = true,
+                        onRetryButtonClick = { movieViewModel.loadPopularMovies() }
+                    )
                 }
             }
         }
     }
 
     private var movies by mutableStateOf<List<MovieResultEntity.MovieEntity>>(emptyList())
+    private var isLoading by mutableStateOf(true)
+    private var isRetryButtonVisible by mutableStateOf(false)
 
     private suspend fun loadPopularMovies() {
         try {
+            isLoading = true
             val response = withContext(Dispatchers.IO) {
                 RetrofitClient.movieApi.getPopularMovies(
                     page = 1,
@@ -82,24 +103,72 @@ class MainActivity : ComponentActivity() {
             if (response.isSuccessful) {
                 val movieResultEntity = response.body()
                 movies = movieResultEntity?.searches ?: emptyList()
+                isLoading = false
+                if (movies.isEmpty()) {
+                    isRetryButtonVisible = true // Show the retry button
+                } else {
+                    isRetryButtonVisible = false // Hide the retry button if data is available
+                }
                 Log.d("AG", "loadPopularMovies: here movie you get is $movieResultEntity")
                 // Handle the movieResultEntity here
             } else {
+                isRetryButtonVisible = true
+
                 // Handle error
             }
         } catch (e: Exception) {
+            isRetryButtonVisible = true
             // Handle exceptions
         }
     }
+
+
 }
 
 @Composable
-fun MovieList(movies: List<MovieResultEntity.MovieEntity>) {
-    LazyColumn {
-        items(movies.size) { index ->
-            MovieItem(movies[index])
+fun MovieList(movies: List<MovieResultEntity.MovieEntity>, isLoading: Boolean,
+              isRetryButtonVisible: Boolean,
+              onRetryButtonClick: () -> Unit
+              ) {
+
+
+    if (isLoading) {
+        CircularProgressIndicator(modifier = Modifier
+            .fillMaxSize()
+            .wrapContentSize(Alignment.Center))
+    } else {
+        val simulateEmpty = MovieResultEntity.DEFAULT
+        if (movies.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .wrapContentSize(Alignment.Center)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "No movies found.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                    if (isRetryButtonVisible) {
+                        Button(onClick = { onRetryButtonClick() }) {
+                            Text(text = "Retry")
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyColumn {
+                items(movies.size) { index ->
+                    MovieItem(movies[index])
+                }
+            }
         }
+
     }
+
 }
 
 @OptIn(ExperimentalCoilApi::class)

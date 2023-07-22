@@ -19,6 +19,9 @@ data class MovieResultEntity(
     val totalResults: Int
 ) : Parcelable {
 
+    companion object {
+        val DEFAULT = MovieResultEntity(0, emptyList(), 0, 0)
+    }
     @Parcelize
     data class MovieEntity(
         @SerializedName("adult")
@@ -49,6 +52,9 @@ data class MovieResultEntity(
         val voteAverage: Double,
         @SerializedName("vote_count")
         val voteCount: Int
-    ) : Parcelable
+    ) : Parcelable{
+
+
+    }
 }
 
