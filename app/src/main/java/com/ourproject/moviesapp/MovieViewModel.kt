@@ -1,5 +1,9 @@
 package com.ourproject.moviesapp
 
+import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -37,11 +41,22 @@ class MovieViewModel: ViewModel() {
     private val _isRetryButtonVisible = mutableStateOf(false)
     val isRetryButtonVisible: State<Boolean> = _isRetryButtonVisible
 
+    private val _retryCount = mutableStateOf(0)
+    val retryCount: State<Int> = _retryCount
+
+    private val _connectivityStatus = mutableStateOf(ConnectivityStatus.Connected)
+    val connectivityStatus: State<ConnectivityStatus> = _connectivityStatus
+
+    fun setConnectivityStatus(status: ConnectivityStatus) {
+        _connectivityStatus.value = status
+    }
+
     fun loadPopularMovies() {
         viewModelScope.launch {
             try {
                 _isLoading.value = true
                 _isRetryButtonVisible.value = false
+
 
                 val response = withContext(Dispatchers.IO) {
                     RetrofitClient.movieApi.getPopularMovies(
@@ -66,4 +81,14 @@ class MovieViewModel: ViewModel() {
             }
         }
     }
+
+    fun incrementRetryCount() {
+        _retryCount.value += 1
+    }
+}
+
+
+enum class ConnectivityStatus {
+    Connected,
+    Disconnected
 }

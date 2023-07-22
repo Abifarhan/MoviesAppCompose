@@ -1,5 +1,8 @@
 package com.ourproject.moviesapp
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -54,90 +57,104 @@ import okhttp3.OkHttpClient
 class MainActivity : ComponentActivity() {
 
 //    private var movies by mutableStateOf<List<MovieEntity>>(emptyList())
-private val movieViewModel: MovieViewModel by viewModels()
+    private val movieViewModel: MovieViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val connectivityManager =
+                getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    movieViewModel.setConnectivityStatus(ConnectivityStatus.Connected)
+                }
+
+                override fun onLost(network: Network) {
+                    movieViewModel.setConnectivityStatus(ConnectivityStatus.Disconnected)
+                }
+            }
+
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
             MoviesAppTheme {
                 // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-
+                        // Load popular movies using LaunchedEffect
                     LaunchedEffect(true) {
-                        movieViewModel.loadPopularMovies()
-//                        loadPopularMovies()
-                    }
+                            movieViewModel.loadPopularMovies()
+                        }
 
                     val movies = movieViewModel.moviesLiveData.value
                     val isLoading = movieViewModel.isLoading.value
                     val isRetryButtonVisible = movieViewModel.isRetryButtonVisible.value
-                    Log.d("TAG", "onCreate: simulate mock $isRetryButtonVisible")
                     MovieList(
                         movies = movies,
                         isLoading = isLoading,
-//                        isRetryButtonVisible = isRetryButtonVisible,
-                        isRetryButtonVisible = true,
-                        onRetryButtonClick = { movieViewModel.loadPopularMovies() }
+                        isRetryButtonVisible = isRetryButtonVisible,
+                        viewModel = movieViewModel,
+                        onRetryButtonClick = {
+                            movieViewModel.loadPopularMovies()
+                        }
                     )
                 }
             }
         }
     }
 
+
+
     private var movies by mutableStateOf<List<MovieResultEntity.MovieEntity>>(emptyList())
     private var isLoading by mutableStateOf(true)
     private var isRetryButtonVisible by mutableStateOf(false)
 
-    private suspend fun loadPopularMovies() {
-        try {
-            isLoading = true
-            val response = withContext(Dispatchers.IO) {
-                RetrofitClient.movieApi.getPopularMovies(
-                    page = 1,
-                    apiKey = "dd1a34e8db923f17b136543601658cee"
-                )
-            }
-
-            if (response.isSuccessful) {
-                val movieResultEntity = response.body()
-                movies = movieResultEntity?.searches ?: emptyList()
-                isLoading = false
-                if (movies.isEmpty()) {
-                    isRetryButtonVisible = true // Show the retry button
-                } else {
-                    isRetryButtonVisible = false // Hide the retry button if data is available
-                }
-                Log.d("AG", "loadPopularMovies: here movie you get is $movieResultEntity")
-                // Handle the movieResultEntity here
-            } else {
-                isRetryButtonVisible = true
-
-                // Handle error
-            }
-        } catch (e: Exception) {
-            isRetryButtonVisible = true
-            // Handle exceptions
-        }
-    }
 
 
 }
 
 @Composable
+fun SimulateNotConnected(retryOnClick: () -> Unit){
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .wrapContentSize(Alignment.Center)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "No Connection.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(16.dp)
+            )
+            Button(onClick = { retryOnClick() }) {
+                Text(text = "Retry")
+            }
+
+        }
+    }
+}
+
+
+@Composable
 fun MovieList(movies: List<MovieResultEntity.MovieEntity>, isLoading: Boolean,
               isRetryButtonVisible: Boolean,
+              viewModel: MovieViewModel,
               onRetryButtonClick: () -> Unit
               ) {
 
+    val connectivityStatus = viewModel.connectivityStatus.value
 
+    if (connectivityStatus == ConnectivityStatus.Disconnected) {
+        SimulateNotConnected(retryOnClick = { viewModel.loadPopularMovies() })
+    } else {
+
+    }
     if (isLoading) {
         CircularProgressIndicator(modifier = Modifier
             .fillMaxSize()
             .wrapContentSize(Alignment.Center))
     } else {
-        val simulateEmpty = MovieResultEntity.DEFAULT
         if (movies.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -168,6 +185,7 @@ fun MovieList(movies: List<MovieResultEntity.MovieEntity>, isLoading: Boolean,
         }
 
     }
+
 
 }
 
