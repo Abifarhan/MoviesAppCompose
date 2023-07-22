@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -21,6 +22,8 @@ import androidx.paging.filter
 import com.ourproject.moviesapp.service.MovieApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -32,20 +35,21 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 class MovieViewModel: ViewModel() {
 
-    private val _moviesLiveData = mutableStateOf<List<MovieResultEntity.MovieEntity>>(emptyList())
-    val moviesLiveData: State<List<MovieResultEntity.MovieEntity>> = _moviesLiveData
+    private val _moviesLiveData = MutableStateFlow<List<MovieResultEntity.MovieEntity>>(emptyList())
+    val moviesLiveData: StateFlow<List<MovieResultEntity.MovieEntity>> = _moviesLiveData
 
-    private val _isLoading = mutableStateOf(false)
-    val isLoading: State<Boolean> = _isLoading
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
 
-    private val _isRetryButtonVisible = mutableStateOf(false)
-    val isRetryButtonVisible: State<Boolean> = _isRetryButtonVisible
+    private val _isRetryButtonVisible = MutableStateFlow(false)
+    val isRetryButtonVisible: StateFlow<Boolean> = _isRetryButtonVisible
 
-    private val _retryCount = mutableStateOf(0)
-    val retryCount: State<Int> = _retryCount
+    private val _retryCount = MutableStateFlow(0)
+    val retryCount: StateFlow<Int> = _retryCount
 
-    private val _connectivityStatus = mutableStateOf(ConnectivityStatus.Connected)
-    val connectivityStatus: State<ConnectivityStatus> = _connectivityStatus
+    private val _connectivityStatus = MutableStateFlow(ConnectivityStatus.Connected)
+    val connectivityStatus: StateFlow<ConnectivityStatus> = _connectivityStatus
+
 
     fun setConnectivityStatus(status: ConnectivityStatus) {
         _connectivityStatus.value = status
@@ -57,7 +61,6 @@ class MovieViewModel: ViewModel() {
                 _isLoading.value = true
                 _isRetryButtonVisible.value = false
 
-
                 val response = withContext(Dispatchers.IO) {
                     RetrofitClient.movieApi.getPopularMovies(
                         page = 1,
@@ -67,6 +70,7 @@ class MovieViewModel: ViewModel() {
 
                 if (response.isSuccessful) {
                     val movieResultEntity = response.body()
+                    Log.d("TAG", "loadPopularMovies: result movie $movieResultEntity")
                     _moviesLiveData.value = movieResultEntity?.searches ?: emptyList()
                 } else {
                     // Handle error and show retry button
@@ -84,6 +88,10 @@ class MovieViewModel: ViewModel() {
 
     fun incrementRetryCount() {
         _retryCount.value += 1
+    }
+
+    fun onSwipeRefresh() {
+        loadPopularMovies()
     }
 }
 

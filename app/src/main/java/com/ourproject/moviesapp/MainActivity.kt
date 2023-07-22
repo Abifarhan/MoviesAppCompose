@@ -1,5 +1,6 @@
 package com.ourproject.moviesapp
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
@@ -27,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,19 +47,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import coil.ImageLoader
-import coil.annotation.ExperimentalCoilApi
 import coil.compose.rememberImagePainter
-import coil.util.CoilUtils
-import okhttp3.OkHttpClient
+import androidx.compose.runtime.remember
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.remember
 
 class MainActivity : ComponentActivity() {
 
-//    private var movies by mutableStateOf<List<MovieEntity>>(emptyList())
     private val movieViewModel: MovieViewModel by viewModels()
+
+    @SuppressLint("StateFlowValueCalledInComposition")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -75,23 +79,20 @@ class MainActivity : ComponentActivity() {
 
             connectivityManager.registerDefaultNetworkCallback(networkCallback)
             MoviesAppTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                        // Load popular movies using LaunchedEffect
-                    LaunchedEffect(true) {
-                            movieViewModel.loadPopularMovies()
-                        }
 
-                    val movies = movieViewModel.moviesLiveData.value
-                    val isLoading = movieViewModel.isLoading.value
-                    val isRetryButtonVisible = movieViewModel.isRetryButtonVisible.value
+                    // Load popular movies using LaunchedEffect
+                    LaunchedEffect(true) {
+                        movieViewModel.loadPopularMovies()
+                    }
+
                     MovieList(
-                        movies = movies,
-                        isLoading = isLoading,
-                        isRetryButtonVisible = isRetryButtonVisible,
+                        movies = movieViewModel.moviesLiveData.collectAsState().value,
+                        isLoading = movieViewModel.isLoading.collectAsState().value,
+                        isRetryButtonVisible = movieViewModel.isRetryButtonVisible.collectAsState().value,
                         viewModel = movieViewModel,
                         onRetryButtonClick = {
                             movieViewModel.loadPopularMovies()
@@ -103,10 +104,6 @@ class MainActivity : ComponentActivity() {
     }
 
 
-
-    private var movies by mutableStateOf<List<MovieResultEntity.MovieEntity>>(emptyList())
-    private var isLoading by mutableStateOf(true)
-    private var isRetryButtonVisible by mutableStateOf(false)
 
 
 
@@ -136,6 +133,7 @@ fun SimulateNotConnected(retryOnClick: () -> Unit){
 }
 
 
+@SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 fun MovieList(movies: List<MovieResultEntity.MovieEntity>, isLoading: Boolean,
               isRetryButtonVisible: Boolean,
@@ -144,42 +142,36 @@ fun MovieList(movies: List<MovieResultEntity.MovieEntity>, isLoading: Boolean,
               ) {
 
     val connectivityStatus = viewModel.connectivityStatus.value
-
+//
     if (connectivityStatus == ConnectivityStatus.Disconnected) {
         SimulateNotConnected(retryOnClick = { viewModel.loadPopularMovies() })
     } else {
 
-    }
-    if (isLoading) {
-        CircularProgressIndicator(modifier = Modifier
-            .fillMaxSize()
-            .wrapContentSize(Alignment.Center))
-    } else {
-        if (movies.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .wrapContentSize(Alignment.Center)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "No movies found.",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                    if (isRetryButtonVisible) {
-                        Button(onClick = { onRetryButtonClick() }) {
-                            Text(text = "Retry")
-                        }
+        val isRefreshing = isLoading
+
+        SwipeRefresh(
+            state = rememberSwipeRefreshState(isRefreshing),
+            onRefresh = { viewModel.loadPopularMovies() }
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            } else {
+                LazyColumn {
+                    items(movies.size) { index ->
+                        MovieItem(movies[index])
                     }
                 }
-            }
-        } else {
-            LazyColumn {
-                items(movies.size) { index ->
-                    MovieItem(movies[index])
+
+                if (isRetryButtonVisible) {
+                    Button(
+                        onClick = { onRetryButtonClick() },
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                    ) {
+                        Text(text = "Retry")
+                    }
                 }
             }
         }
@@ -187,14 +179,12 @@ fun MovieList(movies: List<MovieResultEntity.MovieEntity>, isLoading: Boolean,
     }
 
 
+
 }
 
-@OptIn(ExperimentalCoilApi::class)
 @Composable
 fun MovieItem(movie: MovieResultEntity.MovieEntity) {
-//    val imageLoader = ImageLoader.Builder(LocalContext.current)
-//        .componentRegistry { add(SvgDecoder(LocalContext.current)) }
-//        .build()
+
     Log.d("TAG", "MovieItem result you get is $movie: ")
     Row(
         modifier = Modifier
